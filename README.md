@@ -93,7 +93,7 @@ npm run dev
 
 The backend needs `DATABASE_URL` and `JWT_SECRET` in its environment file. It runs on port 4000.
 
-To create the first Super Admin with sample groups and members, run `npx tsx prisma/seed.ts`. This creates the login `admin@example.com` / `Admin@123!`. Change the password after the first sign-in.
+To create the first Super Admin, run `npx tsx prisma/seed.ts`. This creates the login `admin@sms.com` / `Admin@123!`. Running it again resets that account's password, which is useful if you get locked out. Change the password after the first sign-in.
 
 **Frontend**
 
