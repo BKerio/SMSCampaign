@@ -1,111 +1,106 @@
-# Bulk SMS Platform
+# SMS Campaign Platform
 
-Catholic Church, Umoja's bulk SMS sending platform. An admin/staff operator onboards **Members** (individually or via CSV import), organizes them into **Groups**, and sends **Campaigns** — bulk SMS messages targeted at all members, a group, or a hand-picked selection — with a live send progress view and a full audit trail.
+A bulk SMS platform for the Catholic Church, Umoja. Parish operators keep a register of members, organize them into groups, and send SMS campaigns to everyone, to one group, or to a hand-picked list. Every send is tracked message by message, and every change in the system is recorded in an audit log.
 
-- **Backend:** [backend/](backend/), Node.js + Express 5 + TypeScript, PostgreSQL via Prisma, JWT auth, Socket.io for live campaign progress.
-- **Frontend:** [frontend/](frontend/), React 19 + TypeScript + Vite, Tailwind CSS, React Router, TanStack Query, Zustand.
+## How the system works
 
-## Features
+### 1. Operators sign in
 
-- **Member onboarding**: add members one at a time or bulk-import a CSV (`name`, `phone`, optional `email`/`groups`), with phone numbers normalized and duplicates skipped.
-- **Groups**: organize members into named segments to target a send at.
-- **Bulk SMS campaigns**: compose a message (with a `{{name}}` personalization token), pick an audience (all members / a group / a selection), preview the recipient count and SMS segment cost, and send. Sends run in the background in small batches through the SMS gateway.
-- **Live delivery progress**: a campaign's detail page shows a live progress bar and a per-recipient delivery log (sent/failed/pending) over Socket.io, plus a "retry failed" action.
-- **Admin**: operator account management (Super Admin/Admin/Staff), org-wide audit log of every create/update/delete/login.
-- Opt-out support: a member can be marked unsubscribed and is excluded from every future send without losing their record.
+Operators are the people who use the platform: parish staff and leaders. Each one signs in with an email and password. There is no public sign-up; a Super Admin or Admin creates operator accounts.
 
-## Tech stack
+Each operator has an **access level** that decides what they can do:
+
+| Access level | What they can do |
+|---|---|
+| Staff | Add and manage members and groups, send campaigns, view reports |
+| Admin | Everything Staff can do, plus manage operator accounts and view the audit log |
+| Super Admin | Everything Admin can do, plus configure the SMS gateway in Settings |
+
+Operators can also hold a **leadership position** (Chairman, Vice Chairman, Secretary, Treasurer or Catechist). The position is descriptive only and does not change access. It is used to sign the messages they send.
+
+### 2. Members are registered
+
+Members are the people who receive SMS. They never sign in. An operator can add members in two ways:
+
+- **One at a time**, with a name, phone number, and optional email, notes and leadership position.
+- **Bulk import** from a CSV or Excel file. Phone numbers are cleaned into one standard format, and duplicates are skipped. After the import, the operator sees how many were added, skipped or rejected.
+
+A member can be marked as **opted out**. They stay in the register with their history, but no future campaign is sent to them.
+
+### 3. Members are organized into groups
+
+Groups are named segments such as Youth Choir, Catechists or a Small Christian Community. A member can belong to any number of groups. Within each group, a member can hold a group position: Moderator, Vice Moderator, Secretary, Vice Secretary or Treasurer.
+
+### 4. A campaign is written and sent
+
+To send a campaign, the operator:
+
+1. Gives it a name (seen only by operators).
+2. Writes the message. Typing `{{name}}` puts each recipient's own name into their copy. Writing "member" in a greeting is turned into `{{name}}` automatically.
+3. Chooses the audience: all members, one group, or selected members.
+4. Reviews a preview showing how many people will receive it, what the message will look like, and how many SMS units each copy will use.
+
+Every message is signed automatically at the end with the sending operator's position and name, for example:
+
+```
+Hi Jane, harambee is this Sunday after mass.
+- Chairman, Peter Otieno
+```
+
+When the operator presses Send, the platform saves a snapshot of every recipient's name and phone number, then sends the messages in the background in small batches through the SMS gateway. The operator does not have to wait on the page.
+
+### 5. Delivery is tracked live
+
+Each campaign has a detail page with a progress bar that updates live as messages go out, and a delivery log listing every recipient as sent, failed or pending. If some messages fail, the operator can retry just the failed ones. Because recipient details are snapshotted at send time, the log stays accurate even if a member is edited or removed later.
+
+### 6. Credits, reports and settings
+
+- **SMS credits:** the platform shows the remaining credit balance from the gateway, so operators know whether a send can go through.
+- **Reports and dashboard:** summaries of members, groups, campaigns and delivery rates, with export to PDF and Excel.
+- **Settings (Super Admin only):** save and test SMS gateway credentials and choose which gateway is active. Advanta is supported for sending today.
+
+### 7. Everything is audited
+
+Every login and every create, update or delete (members, groups, campaigns, operators, settings) is written to the audit log with who did it, when, and what changed. Admins can filter the log by person, action and date.
+
+## Technology
 
 | | Backend | Frontend |
 |---|---|---|
 | Language | TypeScript | TypeScript |
-| Framework | Express 5 | React 19 + Vite |
-| Data | PostgreSQL + Prisma ORM (`pg` driver adapter) | TanStack Query, Axios |
-| Auth | JWT (`jsonwebtoken`), bcrypt | Zustand session store |
-| Realtime | Socket.io (campaign send progress) | socket.io-client |
-| SMS gateway | Advanta/QuickSMS | - |
-| Styling | n/a | Tailwind CSS v4 + a custom CSS design system |
-| Other | Zod validation, Multer + csv-parse for CSV import, Pino logging | React Hook Form + Zod resolvers, React Router, Recharts, SweetAlert2 |
+| Framework | Node.js with Express 5 | React 19 with Vite |
+| Data | PostgreSQL on Neon, through Prisma | TanStack Query, Axios |
+| File storage | Neon Object Storage (S3 compatible) | |
+| Sign-in | JWT tokens, bcrypt password hashing | Zustand session store |
+| Live updates | Socket.io | Socket.io client |
+| SMS gateway | Advanta | |
+| Styling | | Tailwind CSS with a custom design system, Lucide icons |
+| Other | Zod validation, CSV parsing, Pino logging | React Hook Form, React Router, Recharts, SweetAlert2 |
 
-## Roles
+## Running it locally
 
-`SUPER_ADMIN`, `ADMIN`, `STAFF` — operator accounts that sign into the platform, enforced both by backend route guards (`requireRole`) and frontend route guards (`RoleGuard`). Operators manage everyone; `SUPER_ADMIN`/`ADMIN` additionally manage other operator accounts and the audit log.
+You need Node.js 20 or newer, a PostgreSQL database (the project uses Neon), and an Advanta account if you want to actually send SMS. Everything else works without one.
 
-Not to be confused with **Members** (the SMS recipients members are onboarded), who never sign in.
-
-## Project structure
-
-```
-backend/
-  src/
-    modules/          # auth, admin, members, groups, campaigns, sms, audit
-    middleware/        # auth, error handling, CSV upload
-    lib/                # env validation, JWT, logging, Prisma client, Socket.io
-    shared/             # error classes, guards, schemas, types, utils
-  prisma/schema.prisma  # data model
-frontend/
-  src/
-    pages/             # dashboards, members, groups, campaigns, admin, auth, shared
-    components/        # layout and shared components
-    api/                # Axios client + typed API calls
-    stores/             # Zustand stores (auth, notifications)
-    router/index.tsx    # route table + role guards
-```
-
-## Data model
-
-Defined in [backend/prisma/schema.prisma](backend/prisma/schema.prisma):
-
-- `User` — an operator account.
-- `Member` — an SMS recipient (name, normalized phone, optional email/notes, subscribed flag), onboarded by a `User`, belonging to zero or more `Group`s.
-- `Group` — a named member segment a campaign can target.
-- `Campaign` — one bulk send (name, message, audience type, recipient/sent/failed counts, status) + its `CampaignRecipient` rows, one per recipient, snapshotting name/phone/status/error so the delivery log stays accurate even if the member is later edited.
-- `AuditLog` — every create/update/delete/login across the system.
-
-## API
-
-All routes are mounted in [backend/src/app.ts](backend/src/app.ts). Base path is the API root (e.g. `http://localhost:3000`); every route below requires `Authorization: Bearer <jwt>`.
-
-| Prefix | Routes | Purpose |
-|---|---|---|
-| `/auth` | `POST /login`, `GET /me`, `PATCH /me` | Operator login, profile |
-| `/admin` | `GET/POST /users`, `GET/PATCH/DELETE /users/:id`, `GET /audit-logs` | Operator account management, audit log (Admin/Super Admin) |
-| `/members` | `GET /`, `GET/PATCH/DELETE /:id`, `POST /`, `POST /import` | Member CRUD, CSV bulk import |
-| `/groups` | `GET /`, `GET/PATCH/DELETE /:id`, `POST /` | Group CRUD, group member listing |
-| `/campaigns` | `POST /preview`, `GET /`, `GET /:id`, `GET /:id/recipients`, `POST /`, `POST /:id/retry-failed` | Audience preview, campaign CRUD, delivery log, retry |
-
-## Getting started
-
-### Prerequisites
-- Node.js 20+
-- A PostgreSQL database
-- An Advanta/QuickSMS account (for actually sending campaigns - the rest of the platform works without one)
-
-### Backend
+**Backend**
 
 ```bash
 cd backend
-cp .env.example .env   # fill in DATABASE_URL and JWT_SECRET at minimum
 npm install
 npx prisma generate
-npx prisma db push     # or migrate, once you have migrations
-npm run dev             # http://localhost:3000
+npx prisma db push
+npm run dev
 ```
 
-Required env vars: `DATABASE_URL`, `JWT_SECRET`. The `ADVANTA_*` SMS gateway vars are optional at boot but required for `POST /campaigns` to actually send - see [backend/.env.example](backend/.env.example).
+The backend needs `DATABASE_URL` and `JWT_SECRET` in its environment file. It runs on port 4000.
 
-Seed a super admin + sample groups/members: `npx tsx prisma/seed.ts` (creates `admin@example.com` / `Admin@123!`).
+To create the first Super Admin with sample groups and members, run `npx tsx prisma/seed.ts`. This creates the login `admin@example.com` / `Admin@123!`. Change the password after the first sign-in.
 
-### Frontend
+**Frontend**
 
 ```bash
 cd frontend
-cp .env.example .env    # set VITE_API_BASE_URL and VITE_SOCKET_URL to the backend URL
 npm install
-npm run dev              # Vite dev server
+npm run dev
 ```
 
-## Scripts
-
-**Backend** (`backend/package.json`): `npm run dev` (nodemon + tsx), `npm run build` (Prisma generate + tsc), `npm start` (run compiled build). `backend/scripts/create-user.ts` and `set-super-admin.ts` manage operator accounts directly against the database.
-**Frontend** (`frontend/package.json`): `npm run dev`, `npm run build` (tsc -b + vite build), `npm run lint`, `npm run preview`.
+Set `VITE_API_BASE_URL` and `VITE_SOCKET_URL` in the frontend environment file to the backend address (for example `http://localhost:4000`).
