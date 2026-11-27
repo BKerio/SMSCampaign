@@ -1,5 +1,8 @@
 # SMS Campaign Platform
 
+Tool Kit
+
+
 A bulk SMS platform for the Catholic Church, Umoja. Parish operators keep a register of members, organize them into groups, and send SMS campaigns to everyone, to one group, or to a hand-picked list. Every send is tracked message by message, and every change in the system is recorded in an audit log.
 
 ## How the system works
